@@ -86,9 +86,9 @@ public class BufferPool {
         if (pages.size() >= numPages){
             evictPage();
         }
-        DbFile file = Database.getCatalog().getFile(pid.getTableId());
+        DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
         Page  page = file.readPage(pid);
-        pages.put(pid, page)
+        pages.put(pid, page);
         return page;
     }
 
