@@ -3,6 +3,7 @@ package simpledb.storage;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 /**
  * Tuple maintains information about the contents of a tuple. Tuples have a
@@ -14,6 +15,7 @@ public class Tuple implements Serializable {
     private static final long serialVersionUID = 1L;
     private TupleDesc td;
     private RecordId recordId;
+    private Field[] fields;
     /**
      * Create a new tuple with the specified schema (type).
      *
@@ -25,6 +27,7 @@ public class Tuple implements Serializable {
         // some code goes here
         this.td = td;
         this.recordId = null;
+        this.fields = new Field[td.numFields()];
     }
 
     /**
@@ -67,6 +70,10 @@ public class Tuple implements Serializable {
      */
     public void setField(int i, Field f) {
         // some code goes here
+        if (i > this.td.numFields() || i < 0){
+            throw new NoSuchElementException();
+        }
+        this.fields[i] = f;
     }
 
     /**
@@ -77,7 +84,7 @@ public class Tuple implements Serializable {
      */
     public Field getField(int i) {
         // some code goes here
-        return null;
+        return this.fields[i];
     }
 
     /**
@@ -90,7 +97,14 @@ public class Tuple implements Serializable {
      */
     public String toString() {
         // some code goes here
-        throw new UnsupportedOperationException("Implement this");
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < fields.length; i++) {
+            sb.append(fields[i]);
+            if (i < fields.length - 1) {
+                sb.append("\t");
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -100,7 +114,7 @@ public class Tuple implements Serializable {
     public Iterator<Field> fields()
     {
         // some code goes here
-        return null;
+        return Arrays.asList(this.fields).iterator();
     }
 
     /**
@@ -109,5 +123,6 @@ public class Tuple implements Serializable {
     public void resetTupleDesc(TupleDesc td)
     {
         // some code goes here
+        this.td = td;
     }
 }
