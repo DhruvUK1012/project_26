@@ -110,7 +110,7 @@ public class Catalog {
             throw new NoSuchElementException("Table not found");
         }
         return nameToId.get(name);
-}
+    }
 
     /**
      * Returns the tuple descriptor (schema) of the specified table
