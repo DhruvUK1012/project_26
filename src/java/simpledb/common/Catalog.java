@@ -102,15 +102,15 @@ public class Catalog {
      * @throws NoSuchElementException if the table doesn't exist
      */
     public int getTableId(String name) throws NoSuchElementException {
-        // some code goes here
-
-        if (!nameToId.containsKey(name)){
+        //some code here
+        if (name == null) {
+            throw new NoSuchElementException("Table name cannot be null");
+        }
+        if (!nameToId.containsKey(name)) {
             throw new NoSuchElementException("Table not found");
         }
-
-
         return nameToId.get(name);
-    }
+}
 
     /**
      * Returns the tuple descriptor (schema) of the specified table
