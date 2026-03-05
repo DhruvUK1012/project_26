@@ -22,6 +22,10 @@ import java.util.*;
  */
 public class HeapFile implements DbFile {
 
+    private final File file;
+    private final TupleDesc td;
+    private final int tableId;
+
     /**
      * Constructs a heap file backed by the specified file.
      * 
@@ -31,6 +35,9 @@ public class HeapFile implements DbFile {
      */
     public HeapFile(File f, TupleDesc td) {
         // some code goes here
+        this.file = f;
+        this.td = td;
+        this.tableId = f.getAbsoluteFile().hashCode();
     }
 
     /**
@@ -40,7 +47,7 @@ public class HeapFile implements DbFile {
      */
     public File getFile() {
         // some code goes here
-        return null;
+        return file;
     }
 
     /**
@@ -54,7 +61,7 @@ public class HeapFile implements DbFile {
      */
     public int getId() {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        return tableId;
     }
 
     /**
@@ -64,13 +71,27 @@ public class HeapFile implements DbFile {
      */
     public TupleDesc getTupleDesc() {
         // some code goes here
-        throw new UnsupportedOperationException("implement this");
+        return td;
     }
 
     // see DbFile.java for javadocs
     public Page readPage(PageId pid) {
         // some code goes here
-        return null;
+        try {
+            int pageSize = BufferPool.getPageSize();
+            byte[] data = new byte[pageSize];
+
+            RandomAccessFile raf = new RandomAccessFile(file, "r");
+            int offset = ((HeapPageId) pid).getPageNumber() * pageSize;
+
+            raf.seek(offset);
+            raf.readFully(data);
+            raf.close();
+
+            return new HeapPage((HeapPageId) pid, data);
+        } catch (IOException e) {
+            throw new IllegalArgumentException(e);
+        }
     }
 
     // see DbFile.java for javadocs
@@ -84,7 +105,7 @@ public class HeapFile implements DbFile {
      */
     public int numPages() {
         // some code goes here
-        return 0;
+        return (int) (file.length() / BufferPool.getPageSize());
     }
 
     // see DbFile.java for javadocs
@@ -106,8 +127,61 @@ public class HeapFile implements DbFile {
     // see DbFile.java for javadocs
     public DbFileIterator iterator(TransactionId tid) {
         // some code goes here
-        return null;
+        return new HeapFileIterator(tid);
     }
 
-}
+    private class HeapFileIterator implements DbFileIterator {
 
+        private TransactionId tid;
+        private int pageNo;
+        private Iterator<Tuple> tupleIterator;
+        private boolean open;
+
+        public HeapFileIterator(TransactionId tid) {
+            this.tid = tid;
+        }
+
+        public void open() throws DbException, TransactionAbortedException {
+            open = true;
+            pageNo = 0;
+            loadPage();
+        }
+
+        private void loadPage() throws DbException, TransactionAbortedException {
+            if (pageNo >= numPages()) {
+                tupleIterator = null;
+                return;
+            }
+            HeapPageId pid = new HeapPageId(getId(), pageNo);
+            HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+            tupleIterator = page.iterator();
+        }
+
+        public boolean hasNext() throws DbException, TransactionAbortedException {
+            if (!open || tupleIterator == null) return false;
+
+            if (tupleIterator.hasNext()) return true;
+
+            while (++pageNo < numPages()) {
+                loadPage();
+                if (tupleIterator != null && tupleIterator.hasNext()) return true;
+            }
+            return false;
+        }
+
+        public Tuple next() throws DbException, TransactionAbortedException, NoSuchElementException {
+            if (!hasNext()) throw new NoSuchElementException();
+            return tupleIterator.next();
+        }
+
+        public void rewind() throws DbException, TransactionAbortedException {
+            close();
+            open();
+        }
+
+        public void close() {
+            tupleIterator = null;
+            open = false;
+        }
+    }
+}
