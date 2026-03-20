@@ -96,11 +96,12 @@ public class Insert extends Operator {
         BufferPool bp = Database.getBufferPool();
 
         while (child.hasNext()) {
-        Tuple t = child.next();
+            Tuple t = child.next();
             try {
                 bp.insertTuple(this.t, tableId, t);
             } catch (IOException e) {
-                throw new DbException("IOException during insert: " + e.getMessage());
+                // wrap IOException in a DbException
+                throw new DbException("Insert failed: " + e.getMessage());
             }
             count++;
         }

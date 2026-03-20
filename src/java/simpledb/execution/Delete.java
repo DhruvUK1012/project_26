@@ -80,11 +80,11 @@ public class Delete extends Operator {
 
         while (child.hasNext()) {
             Tuple t = child.next();
-            try{
+            try {
                 bp.deleteTuple(this.t, t);
-            } catch (IOException e){
-                throw new DbException("IOException during delete: " + e.getMessage());
-            }            
+            } catch (IOException e) {
+                throw new DbException("Delete failed: " + e.getMessage());
+            }
             count++;
         }
 
