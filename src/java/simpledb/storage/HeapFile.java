@@ -98,6 +98,14 @@ public class HeapFile implements DbFile {
     public void writePage(Page page) throws IOException {
         // some code goes here
         // not necessary for lab1
+        int pageSize = BufferPool.getPageSize();
+        int pageNo = page.getId().getPageNumber();
+        int offset = pageNo * pageSize;
+
+        RandomAccessFile raf = new RandomAccessFile(file, "rw");
+        raf.seek(offset);
+        raf.write(page.getPageData());
+        raf.close();
     }
 
     /**
@@ -112,16 +120,47 @@ public class HeapFile implements DbFile {
     public List<Page> insertTuple(TransactionId tid, Tuple t)
             throws DbException, IOException, TransactionAbortedException {
         // some code goes here
-        return null;
-        // not necessary for lab1
+        ArrayList<Page> modifiedPages = new ArrayList<>();
+
+        for (int i = 0; i < numPages(); i++) {
+            HeapPageId pid = new HeapPageId(getId(), i);
+            HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
+
+            if (page.getNumEmptySlots() > 0) {
+                page.insertTuple(t);
+                modifiedPages.add(page);
+                return modifiedPages;
+            }
+        }
+
+        HeapPageId newPid = new HeapPageId(getId(), numPages());
+        HeapPage newPage = new HeapPage(newPid, HeapPage.createEmptyPageData());
+        newPage.insertTuple(t);
+        writePage(newPage);
+
+        HeapPage insertedPage = (HeapPage) Database.getBufferPool().getPage(tid, newPid, Permissions.READ_WRITE);
+        modifiedPages.add(insertedPage);
+
+        return modifiedPages;
     }
 
     // see DbFile.java for javadocs
     public ArrayList<Page> deleteTuple(TransactionId tid, Tuple t) throws DbException,
             TransactionAbortedException {
         // some code goes here
-        return null;
-        // not necessary for lab1
+        ArrayList<Page> modifiedPages = new ArrayList<>();
+
+        RecordId rid = t.getRecordId();
+        if (rid == null) {
+            throw new DbException("tuple has no record id");
+        }
+
+        HeapPageId pid = (HeapPageId) rid.getPageId();
+        HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
+        page.deleteTuple(t);
+        modifiedPages.add(page);
+
+        return modifiedPages;
     }
 
     // see DbFile.java for javadocs

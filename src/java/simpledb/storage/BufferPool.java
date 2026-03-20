@@ -10,6 +10,7 @@ import simpledb.transaction.TransactionId;
 import java.io.*;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.List;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -154,6 +155,13 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
+        DbFile file = Database.getCatalog().getDatabaseFile(tableId);
+        List<Page> dirtyPages = file.insertTuple(tid, t);
+
+        for (Page p : dirtyPages) {
+            p.markDirty(true, tid);
+            pages.put(p.getId(), p);
+        }
     }
 
     /**
@@ -173,6 +181,14 @@ public class BufferPool {
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
+        int tableId = t.getRecordId().getPageId().getTableId();
+        DbFile file = Database.getCatalog().getDatabaseFile(tableId);
+        List<Page> dirtyPages = file.deleteTuple(tid, t);
+
+        for (Page p : dirtyPages) {
+            p.markDirty(true, tid);
+            pages.put(p.getId(), p);
+        }
     }
 
     /**
