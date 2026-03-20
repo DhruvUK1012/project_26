@@ -98,7 +98,12 @@ public class Insert extends Operator {
 
         while (child.hasNext()) {
             Tuple t = child.next();
-            bp.insertTuple(this.t, tableId, t);
+            try {
+                bp.insertTuple(this.t, tableId, t);
+            } catch (IOException e) {
+                // wrap IOException in a DbException
+                throw new DbException("Insert failed: " + e.getMessage());
+            }
             count++;
         }
 
