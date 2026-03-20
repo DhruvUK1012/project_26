@@ -88,8 +88,7 @@ public class Insert extends Operator {
      * @see Database#getBufferPool
      * @see BufferPool#insertTuple
      */
-    protected Tuple fetchNext() throws TransactionAbortedException, DbException, IOException {
-        // some code goes here
+    protected Tuple fetchNext() throws TransactionAbortedException, DbException {
         if (called) return null;
         called = true;
 
@@ -97,14 +96,17 @@ public class Insert extends Operator {
         BufferPool bp = Database.getBufferPool();
 
         while (child.hasNext()) {
-            Tuple t = child.next();
-            bp.insertTuple(this.t, tableId, t);
+        Tuple t = child.next();
+            try {
+                bp.insertTuple(this.t, tableId, t);
+            } catch (IOException e) {
+                throw new DbException("IOException during insert: " + e.getMessage());
+            }
             count++;
         }
 
         Tuple result = new Tuple(getTupleDesc());
         result.setField(0, new IntField(count));
-
         return result;
     }
 

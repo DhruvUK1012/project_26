@@ -40,16 +40,16 @@ public class Filter extends Operator {
     public TupleDesc getTupleDesc() {
         // some code goes here
         return child.getTupleDesc();
-};
     }
+    
 
     public void open() throws DbException, NoSuchElementException,
             TransactionAbortedException {
         // some code goes here
         super.open();
         child.open();
-}
     }
+    
 
     public void close() {
         // some code goes here
