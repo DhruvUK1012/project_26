@@ -32,6 +32,10 @@ public class BufferPool {
     private static final int DEFAULT_PAGE_SIZE = 4096;
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
+
+
+    //
+    private final Map<TransactionId, Set<TransactionId>> waitForGraph;
     
     /** Default number of pages passed to the constructor. This is used by
     other classes. BufferPool should use the numPages argument to the
@@ -66,6 +70,8 @@ public class BufferPool {
         this.pages = new ConcurrentHashMap<>();
         this.pageLocks = new HashMap<>();
         this.transactionLocks = new HashMap<>();
+
+        this.waitForGraph = new HashMap<>();
     }
     
     public static int getPageSize() {
@@ -179,6 +185,9 @@ public class BufferPool {
         // some code goes here
         // not necessary for lab1|lab2
         releaseAllLocks(tid);
+        synchronized (this) {
+            removeWaitEdges(tid);
+        }
     }
 
     /**
@@ -310,16 +319,33 @@ public class BufferPool {
         throw new DbException("no clean page to evict");
     }
 
-    private synchronized void acquireLock(TransactionId tid, PageId pid, Permissions perm) {
+    private synchronized void acquireLock(TransactionId tid, PageId pid, Permissions perm)
+        throws TransactionAbortedException {
+
         Lock lock = pageLocks.computeIfAbsent(pid, k -> new Lock());
 
         while (!canGrant(lock, tid, perm)) {
+            Set<TransactionId> blockers = getBlockingTransactions(lock, tid, perm);
+
+            addWaitEdges(tid, blockers);
+
+            if (hasCycle(tid)) {
+                removeWaitEdges(tid);
+                throw new TransactionAbortedException();
+            }
+
             try {
                 wait();
             } catch (InterruptedException e) {
+                removeWaitEdges(tid);
                 Thread.currentThread().interrupt();
+                throw new TransactionAbortedException();
             }
+
+            removeWaitEdges(tid);
         }
+
+        removeWaitEdges(tid);
 
         if (perm == Permissions.READ_ONLY) {
             grantSharedLock(lock, tid, pid);
@@ -420,5 +446,75 @@ public class BufferPool {
 
     private void recordTransactionLock(TransactionId tid, PageId pid) {
         transactionLocks.computeIfAbsent(tid, k -> new HashSet<>()).add(pid);
+    }
+
+
+    //helper functions
+
+    private Set<TransactionId> getBlockingTransactions(Lock lock, TransactionId tid, Permissions perm) {
+        Set<TransactionId> blockers = new HashSet<>();
+
+        if (perm == Permissions.READ_ONLY) {
+            if (lock.exclusiveHolder != null && !lock.exclusiveHolder.equals(tid)) {
+                blockers.add(lock.exclusiveHolder);
+            }
+        } else { // READ_WRITE
+            if (lock.exclusiveHolder != null && !lock.exclusiveHolder.equals(tid)) {
+                blockers.add(lock.exclusiveHolder);
+            }
+
+            for (TransactionId holder : lock.sharedHolders) {
+                if (!holder.equals(tid)) {
+                    blockers.add(holder);
+                }
+            }
+        }
+
+        return blockers;
+    }
+
+    private void addWaitEdges(TransactionId from, Set<TransactionId> toTransactions) {
+        if (toTransactions.isEmpty()) {
+            return;
+        }
+        waitForGraph.computeIfAbsent(from, k -> new HashSet<>()).addAll(toTransactions);
+    }
+
+    private void removeWaitEdges(TransactionId tid) {
+        waitForGraph.remove(tid);
+
+        for (Set<TransactionId> neighbors : waitForGraph.values()) {
+            neighbors.remove(tid);
+        }
+    }
+
+    private boolean hasCycle(TransactionId start) {
+        Set<TransactionId> visited = new HashSet<>();
+        Set<TransactionId> stack = new HashSet<>();
+        return dfsCycle(start, visited, stack);
+    }
+
+    private boolean dfsCycle(TransactionId current, Set<TransactionId> visited, Set<TransactionId> stack) {
+        if (stack.contains(current)) {
+            return true;
+        }
+        if (visited.contains(current)) {
+            return false;
+        }
+
+        visited.add(current);
+        stack.add(current);
+
+        Set<TransactionId> neighbors = waitForGraph.get(current);
+        if (neighbors != null) {
+            for (TransactionId next : neighbors) {
+                if (dfsCycle(next, visited, stack)) {
+                    return true;
+                }
+            }
+        }
+
+        stack.remove(current);
+        return false;
     }
 }
