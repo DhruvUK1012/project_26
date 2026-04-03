@@ -202,12 +202,11 @@ public class BufferPool {
             } else {
                 discardPage(pid);
             }
-            unsafeReleasePage(tid, pid);
         }
         releaseAllLocks(tid);
-        synchronized (this) {
-            removeWaitEdges(tid);
-        }
+            synchronized (this) {
+                removeWaitEdges(tid);
+            }
     }
 
     /**
