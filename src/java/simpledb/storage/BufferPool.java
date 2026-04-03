@@ -351,22 +351,22 @@ public class BufferPool {
             addWaitEdges(tid, blockers);
 
             if (hasCycle(tid)) {
-                removeWaitEdges(tid);
+                removeOutgoingWaitEdges(tid);
                 throw new TransactionAbortedException();
             }
 
             try {
                 wait();
             } catch (InterruptedException e) {
-                removeWaitEdges(tid);
+                removeOutgoingWaitEdges(tid);
                 Thread.currentThread().interrupt();
                 throw new TransactionAbortedException();
             }
 
-            removeWaitEdges(tid);
+            removeOutgoingWaitEdges(tid);
         }
 
-        removeWaitEdges(tid);
+        removeOutgoingWaitEdges(tid);
 
         if (perm == Permissions.READ_ONLY) {
             grantSharedLock(lock, tid, pid);
@@ -501,9 +501,12 @@ public class BufferPool {
         waitForGraph.computeIfAbsent(from, k -> new HashSet<>()).addAll(toTransactions);
     }
 
+    private void removeOutgoingWaitEdges(TransactionId tid) {
+        waitForGraph.remove(tid);
+    }
+
     private void removeWaitEdges(TransactionId tid) {
         waitForGraph.remove(tid);
-
         for (Set<TransactionId> neighbors : waitForGraph.values()) {
             neighbors.remove(tid);
         }
