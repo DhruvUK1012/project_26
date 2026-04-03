@@ -11,6 +11,10 @@ import java.io.*;
 
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.HashMap;
+import java.util.HashSet;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -28,6 +32,10 @@ public class BufferPool {
     private static final int DEFAULT_PAGE_SIZE = 4096;
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
+
+
+    //
+    private final Map<TransactionId, Set<TransactionId>> waitForGraph;
     
     /** Default number of pages passed to the constructor. This is used by
     other classes. BufferPool should use the numPages argument to the
@@ -38,6 +46,19 @@ public class BufferPool {
 
     private final ConcurrentHashMap<PageId, Page> pages;
 
+    private static class Lock {
+        private final Set<TransactionId> sharedHolders;
+        private TransactionId exclusiveHolder;
+
+        private Lock() {
+            this.sharedHolders = new HashSet<>();
+            this.exclusiveHolder = null;
+        }
+    }
+
+    private final Map<PageId, Lock> pageLocks;
+    private final Map<TransactionId, Set<PageId>> transactionLocks;
+
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
@@ -47,6 +68,10 @@ public class BufferPool {
         // some code goes here
         BufferPool.numPages = numPages;
         this.pages = new ConcurrentHashMap<>();
+        this.pageLocks = new HashMap<>();
+        this.transactionLocks = new HashMap<>();
+
+        this.waitForGraph = new HashMap<>();
     }
     
     public static int getPageSize() {
@@ -78,19 +103,31 @@ public class BufferPool {
      * @param pid the ID of the requested page
      * @param perm the requested permissions on the page
      */
-    public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
+    public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
         // some code goes here
-        if (pages.containsKey(pid)){
-            return pages.get(pid);
+        acquireLock(tid, pid, perm);
+
+        Page page = pages.get(pid);
+        if (page != null) {
+            return page;
         }
-        if (pages.size() >= numPages){
-            evictPage();
+
+        synchronized (this) {
+            page = pages.get(pid);
+            if (page != null) {
+                return page;
+            }
+
+            if (pages.size() >= numPages) {
+                evictPage();
+            }
+
+            DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
+            page = file.readPage(pid);
+            pages.put(pid, page);
+            return page;
         }
-        DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
-        Page  page = file.readPage(pid);
-        pages.put(pid, page);
-        return page;
     }
 
     /**
@@ -102,9 +139,10 @@ public class BufferPool {
      * @param tid the ID of the transaction requesting the unlock
      * @param pid the ID of the page to unlock
      */
-    public  void unsafeReleasePage(TransactionId tid, PageId pid) {
+    public void unsafeReleasePage(TransactionId tid, PageId pid) {
         // some code goes here
         // not necessary for lab1|lab2
+        releaseLock(tid, pid);
     }
 
     /**
@@ -122,7 +160,18 @@ public class BufferPool {
     public boolean holdsLock(TransactionId tid, PageId p) {
         // some code goes here
         // not necessary for lab1|lab2
-        return false;
+        synchronized (this) {
+            Lock lock = pageLocks.get(p);
+            if (lock == null) {
+                return false;
+            }
+
+            if (tid.equals(lock.exclusiveHolder)) {
+                return true;
+            }
+
+            return lock.sharedHolders.contains(tid);
+        }
     }
 
     /**
@@ -154,6 +203,10 @@ public class BufferPool {
                 discardPage(pid);
             }
             unsafeReleasePage(tid, pid);
+        }
+        releaseAllLocks(tid);
+        synchronized (this) {
+            removeWaitEdges(tid);
         }
     }
 
@@ -198,7 +251,7 @@ public class BufferPool {
      * @param tid the transaction deleting the tuple.
      * @param t the tuple to delete
      */
-    public  void deleteTuple(TransactionId tid, Tuple t)
+    public void deleteTuple(TransactionId tid, Tuple t)
         throws DbException, IOException, TransactionAbortedException {
         // some code goes here
         // not necessary for lab1
@@ -244,9 +297,12 @@ public class BufferPool {
      * Flushes a certain page to disk
      * @param pid an ID indicating the page to flush
      */
-    private synchronized  void flushPage(PageId pid) throws IOException {
+    private synchronized void flushPage(PageId pid) throws IOException {
         // not necessary for lab1
         Page page = pages.get(pid);
+        if (page == null) {
+            return;
+        }
         if (page.isDirty() == null){
             return;
         }
@@ -259,7 +315,7 @@ public class BufferPool {
 
     /** Write all pages of the specified transaction to disk.
      */
-    public synchronized  void flushPages(TransactionId tid) throws IOException {
+    public synchronized void flushPages(TransactionId tid) throws IOException {
         // some code goes here
         // not necessary for lab1|lab2
     }
@@ -268,7 +324,7 @@ public class BufferPool {
      * Discards a page from the buffer pool.
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
-    private synchronized  void evictPage() throws DbException {
+    private synchronized void evictPage() throws DbException {
         // not necessary for lab1
         for (PageId pid : pages.keySet()) {
             Page page = pages.get(pid);
@@ -280,7 +336,206 @@ public class BufferPool {
             }
 
         }
-        throw new DbException("All pages in buffer pool are dirty")
+
+        throw new DbException("no clean page to evict");
     }
 
+    private synchronized void acquireLock(TransactionId tid, PageId pid, Permissions perm)
+        throws TransactionAbortedException {
+
+        Lock lock = pageLocks.computeIfAbsent(pid, k -> new Lock());
+
+        while (!canGrant(lock, tid, perm)) {
+            Set<TransactionId> blockers = getBlockingTransactions(lock, tid, perm);
+
+            addWaitEdges(tid, blockers);
+
+            if (hasCycle(tid)) {
+                removeWaitEdges(tid);
+                throw new TransactionAbortedException();
+            }
+
+            try {
+                wait();
+            } catch (InterruptedException e) {
+                removeWaitEdges(tid);
+                Thread.currentThread().interrupt();
+                throw new TransactionAbortedException();
+            }
+
+            removeWaitEdges(tid);
+        }
+
+        removeWaitEdges(tid);
+
+        if (perm == Permissions.READ_ONLY) {
+            grantSharedLock(lock, tid, pid);
+        } else {
+            grantExclusiveLock(lock, tid, pid);
+        }
+    }
+
+    private synchronized void releaseLock(TransactionId tid, PageId pid) {
+        Lock lock = pageLocks.get(pid);
+        if (lock == null) {
+            return;
+        }
+
+        boolean changed = false;
+
+        if (tid.equals(lock.exclusiveHolder)) {
+            lock.exclusiveHolder = null;
+            changed = true;
+        }
+
+        if (lock.sharedHolders.remove(tid)) {
+            changed = true;
+        }
+
+        Set<PageId> heldPages = transactionLocks.get(tid);
+        if (heldPages != null) {
+            heldPages.remove(pid);
+            if (heldPages.isEmpty()) {
+                transactionLocks.remove(tid);
+            }
+        }
+
+        if (lock.exclusiveHolder == null && lock.sharedHolders.isEmpty()) {
+            pageLocks.remove(pid);
+        }
+
+        if (changed) {
+            notifyAll();
+        }
+    }
+
+    private synchronized void releaseAllLocks(TransactionId tid) {
+        Set<PageId> heldPages = transactionLocks.get(tid);
+        if (heldPages == null || heldPages.isEmpty()) {
+            return;
+        }
+
+        Set<PageId> pagesToRelease = new HashSet<>(heldPages);
+        for (PageId pid : pagesToRelease) {
+            releaseLock(tid, pid);
+        }
+    }
+
+    private boolean canGrant(Lock lock, TransactionId tid, Permissions perm) {
+        if (perm == Permissions.READ_ONLY) {
+            return canGrantShared(lock, tid);
+        } else {
+            return canGrantExclusive(lock, tid);
+        }
+    }
+
+    private boolean canGrantShared(Lock lock, TransactionId tid) {
+        if (lock.exclusiveHolder == null) {
+            return true;
+        }
+        return lock.exclusiveHolder.equals(tid);
+    }
+
+    private boolean canGrantExclusive(Lock lock, TransactionId tid) {
+        if (tid.equals(lock.exclusiveHolder)) {
+            return true;
+        }
+
+        if (lock.exclusiveHolder != null) {
+            return false;
+        }
+
+        if (lock.sharedHolders.isEmpty()) {
+            return true;
+        }
+
+        return lock.sharedHolders.size() == 1 && lock.sharedHolders.contains(tid);
+    }
+
+    private void grantSharedLock(Lock lock, TransactionId tid, PageId pid) {
+        if (!tid.equals(lock.exclusiveHolder)) {
+            lock.sharedHolders.add(tid);
+        }
+        recordTransactionLock(tid, pid);
+    }
+
+    private void grantExclusiveLock(Lock lock, TransactionId tid, PageId pid) {
+        lock.sharedHolders.remove(tid);
+        lock.exclusiveHolder = tid;
+        recordTransactionLock(tid, pid);
+    }
+
+    private void recordTransactionLock(TransactionId tid, PageId pid) {
+        transactionLocks.computeIfAbsent(tid, k -> new HashSet<>()).add(pid);
+    }
+
+
+    //helper functions
+
+    private Set<TransactionId> getBlockingTransactions(Lock lock, TransactionId tid, Permissions perm) {
+        Set<TransactionId> blockers = new HashSet<>();
+
+        if (perm == Permissions.READ_ONLY) {
+            if (lock.exclusiveHolder != null && !lock.exclusiveHolder.equals(tid)) {
+                blockers.add(lock.exclusiveHolder);
+            }
+        } else { // READ_WRITE
+            if (lock.exclusiveHolder != null && !lock.exclusiveHolder.equals(tid)) {
+                blockers.add(lock.exclusiveHolder);
+            }
+
+            for (TransactionId holder : lock.sharedHolders) {
+                if (!holder.equals(tid)) {
+                    blockers.add(holder);
+                }
+            }
+        }
+
+        return blockers;
+    }
+
+    private void addWaitEdges(TransactionId from, Set<TransactionId> toTransactions) {
+        if (toTransactions.isEmpty()) {
+            return;
+        }
+        waitForGraph.computeIfAbsent(from, k -> new HashSet<>()).addAll(toTransactions);
+    }
+
+    private void removeWaitEdges(TransactionId tid) {
+        waitForGraph.remove(tid);
+
+        for (Set<TransactionId> neighbors : waitForGraph.values()) {
+            neighbors.remove(tid);
+        }
+    }
+
+    private boolean hasCycle(TransactionId start) {
+        Set<TransactionId> visited = new HashSet<>();
+        Set<TransactionId> stack = new HashSet<>();
+        return dfsCycle(start, visited, stack);
+    }
+
+    private boolean dfsCycle(TransactionId current, Set<TransactionId> visited, Set<TransactionId> stack) {
+        if (stack.contains(current)) {
+            return true;
+        }
+        if (visited.contains(current)) {
+            return false;
+        }
+
+        visited.add(current);
+        stack.add(current);
+
+        Set<TransactionId> neighbors = waitForGraph.get(current);
+        if (neighbors != null) {
+            for (TransactionId next : neighbors) {
+                if (dfsCycle(next, visited, stack)) {
+                    return true;
+                }
+            }
+        }
+
+        stack.remove(current);
+        return false;
+    }
 }
