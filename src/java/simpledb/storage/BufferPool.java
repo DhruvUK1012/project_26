@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.ArrayList;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -188,25 +189,25 @@ public class BufferPool {
         for(PageId pid : pages.keySet()){
                 Page page = pages.get(pid);
                 if (page.isDirty() != null && page.isDirty().equals(tid)){
-                    toProcess.add(pid)
+                    toProcess.add(pid);
                 }
             }
-        }
+        
         for(PageId pid : toProcess){
-            if(commit == true){
+            if (commit == true){
                 try {
                     flushPage(pid);
-                } catch(IOException as e){
+                } catch(IOException e){
                     e.printStackTrace();
                 }
-            } else {
+            }else{
                 discardPage(pid);
             }
         }
         releaseAllLocks(tid);
-            synchronized (this) {
-                removeWaitEdges(tid);
-            }
+        synchronized (this) {
+            removeWaitEdges(tid);
+        }
     }
 
     /**
