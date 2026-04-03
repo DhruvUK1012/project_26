@@ -124,21 +124,36 @@ public class HeapFile implements DbFile {
 
         for (int i = 0; i < numPages(); i++) {
             HeapPageId pid = new HeapPageId(getId(), i);
-            HeapPage page = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
 
-            if (page.getNumEmptySlots() > 0) {
-                page.insertTuple(t);
-                modifiedPages.add(page);
+            HeapPage readPage = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_ONLY);
+
+            if (readPage.getNumEmptySlots() == 0) {
+                Database.getBufferPool().unsafeReleasePage(tid, pid);
+                continue;
+            }
+
+            Database.getBufferPool().unsafeReleasePage(tid, pid);
+
+            HeapPage writePage = (HeapPage) Database.getBufferPool().getPage(tid, pid, Permissions.READ_WRITE);
+
+            if (writePage.getNumEmptySlots() > 0) {
+                writePage.insertTuple(t);
+                modifiedPages.add(writePage);
                 return modifiedPages;
+            } else {
+                Database.getBufferPool().unsafeReleasePage(tid, pid);
             }
         }
 
-        HeapPageId newPid = new HeapPageId(getId(), numPages());
-        HeapPage newPage = new HeapPage(newPid, HeapPage.createEmptyPageData());
-        newPage.insertTuple(t);
-        writePage(newPage);
+        synchronized (this) {
+            HeapPageId newPid = new HeapPageId(getId(), numPages());
+            HeapPage newPage = new HeapPage(newPid, HeapPage.createEmptyPageData());
+            writePage(newPage);
+        }
 
+        HeapPageId newPid = new HeapPageId(getId(), numPages() - 1);
         HeapPage insertedPage = (HeapPage) Database.getBufferPool().getPage(tid, newPid, Permissions.READ_WRITE);
+        insertedPage.insertTuple(t);
         modifiedPages.add(insertedPage);
 
         return modifiedPages;
