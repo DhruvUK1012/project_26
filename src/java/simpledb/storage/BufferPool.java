@@ -115,6 +115,7 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid) {
         // some code goes here
         // not necessary for lab1|lab2
+        transactionComplete(tid, true);
     }
 
     /** Return true if the specified transaction has a lock on the specified page */
@@ -134,6 +135,26 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit) {
         // some code goes here
         // not necessary for lab1|lab2
+        List <PageId> toProcess = new ArrayList<>();
+        for(PageId pid : pages.keySet()){
+                Page page = pages.get(pid);
+                if (page.isDirty() != null && page.isDirty().equals(tid)){
+                    toProcess.add(pid)
+                }
+            }
+        }
+        for(PageId pid : toProcess){
+            if(commit == true){
+                try {
+                    flushPage(pid);
+                } catch(IOException as e){
+                    e.printStackTrace();
+                }
+            } else {
+                discardPage(pid);
+            }
+            unsafeReleasePage(tid, pid);
+        }
     }
 
     /**
@@ -257,7 +278,9 @@ public class BufferPool {
                 pages.remove(pid);
                 return;
             }
+
         }
+        throw new DbException("All pages in buffer pool are dirty")
     }
 
 }
