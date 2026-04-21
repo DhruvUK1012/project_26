@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.ArrayList;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -184,6 +185,25 @@ public class BufferPool {
     public void transactionComplete(TransactionId tid, boolean commit) {
         // some code goes here
         // not necessary for lab1|lab2
+        List <PageId> toProcess = new ArrayList<>();
+        for(PageId pid : pages.keySet()){
+                Page page = pages.get(pid);
+                if (page.isDirty() != null && page.isDirty().equals(tid)){
+                    toProcess.add(pid);
+                }
+            }
+        
+        for(PageId pid : toProcess){
+            if (commit == true){
+                try {
+                    flushPage(pid);
+                } catch(IOException e){
+                    e.printStackTrace();
+                }
+            }else{
+                discardPage(pid);
+            }
+        }
         releaseAllLocks(tid);
         synchronized (this) {
             removeWaitEdges(tid);
@@ -314,6 +334,7 @@ public class BufferPool {
                 pages.remove(pid);
                 return;
             }
+
         }
 
         throw new DbException("no clean page to evict");
@@ -330,22 +351,22 @@ public class BufferPool {
             addWaitEdges(tid, blockers);
 
             if (hasCycle(tid)) {
-                removeWaitEdges(tid);
+                removeOutgoingWaitEdges(tid);
                 throw new TransactionAbortedException();
             }
 
             try {
                 wait();
             } catch (InterruptedException e) {
-                removeWaitEdges(tid);
+                removeOutgoingWaitEdges(tid);
                 Thread.currentThread().interrupt();
                 throw new TransactionAbortedException();
             }
 
-            removeWaitEdges(tid);
+            removeOutgoingWaitEdges(tid);
         }
 
-        removeWaitEdges(tid);
+        removeOutgoingWaitEdges(tid);
 
         if (perm == Permissions.READ_ONLY) {
             grantSharedLock(lock, tid, pid);
@@ -480,8 +501,15 @@ public class BufferPool {
         waitForGraph.computeIfAbsent(from, k -> new HashSet<>()).addAll(toTransactions);
     }
 
+    private void removeOutgoingWaitEdges(TransactionId tid) {
+        waitForGraph.remove(tid);
+    }
+
     private void removeWaitEdges(TransactionId tid) {
         waitForGraph.remove(tid);
+        for (Set<TransactionId> neighbors : waitForGraph.values()) {
+            neighbors.remove(tid);
+        }
     }
 
     private boolean hasCycle(TransactionId start) {
