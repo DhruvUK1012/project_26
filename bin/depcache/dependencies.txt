@@ -456,7 +456,6 @@ simpledb.common.DbException
 simpledb.storage.Tuple
 simpledb.storage.DbFileIterator
 simpledb.storage.BufferPool
-java.util.Objects
 simpledb.storage.HeapFile$HeapFileIterator
 simpledb.storage.HeapPageId
 simpledb.storage.HeapFile
@@ -2589,6 +2588,7 @@ java.lang.IllegalArgumentException
 simpledb.storage.Field
 java.io.File
 simpledb.index.BTreeFile
+java.util.List
 simpledb.index.BTreeInternalPage
 simpledb.storage.RecordId
 java.lang.Object
