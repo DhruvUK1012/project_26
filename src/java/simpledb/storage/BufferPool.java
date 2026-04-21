@@ -16,6 +16,7 @@ import java.util.Set;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.ArrayList;
+import java.util.ArrayList;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -204,6 +205,25 @@ public class BufferPool {
                 discardPage(pid);
             }
         }
+        List <PageId> toProcess = new ArrayList<>();
+        for(PageId pid : pages.keySet()){
+                Page page = pages.get(pid);
+                if (page.isDirty() != null && page.isDirty().equals(tid)){
+                    toProcess.add(pid);
+                }
+            }
+        
+        for(PageId pid : toProcess){
+            if (commit == true){
+                try {
+                    flushPage(pid);
+                } catch(IOException e){
+                    e.printStackTrace();
+                }
+            }else{
+                discardPage(pid);
+            }
+        }
         releaseAllLocks(tid);
         synchronized (this) {
             removeWaitEdges(tid);
@@ -335,6 +355,7 @@ public class BufferPool {
                 return;
             }
 
+
         }
 
         throw new DbException("no clean page to evict");
@@ -358,15 +379,15 @@ public class BufferPool {
             try {
                 wait();
             } catch (InterruptedException e) {
-                removeOutgoingWaitEdges(tid);
+                removeOutgoingOutgoingWaitEdges(tid);
                 Thread.currentThread().interrupt();
                 throw new TransactionAbortedException();
             }
 
-            removeOutgoingWaitEdges(tid);
+            removeOutgoingOutgoingWaitEdges(tid);
         }
 
-        removeOutgoingWaitEdges(tid);
+        removeOutgoingOutgoingWaitEdges(tid);
 
         if (perm == Permissions.READ_ONLY) {
             grantSharedLock(lock, tid, pid);
@@ -505,11 +526,21 @@ public class BufferPool {
         waitForGraph.remove(tid);
     }
 
+    private void removeOutgoingWaitEdges(TransactionId tid) {
+        waitForGraph.remove(tid);
+    }
+
     private void removeWaitEdges(TransactionId tid) {
         waitForGraph.remove(tid);
         for (Set<TransactionId> neighbors : waitForGraph.values()) {
             neighbors.remove(tid);
         }
+<<<<<<< HEAD
+=======
+        for (Set<TransactionId> neighbors : waitForGraph.values()) {
+            neighbors.remove(tid);
+        }
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
     }
 
     private boolean hasCycle(TransactionId start) {
@@ -542,3 +573,4 @@ public class BufferPool {
         return false;
     }
 }
+

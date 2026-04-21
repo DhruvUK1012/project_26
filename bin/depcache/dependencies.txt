@@ -157,6 +157,12 @@ java.lang.Object
 simpledb.common.Debug
 java.lang.Byte
 java.text.ParseException
+<<<<<<< HEAD
+=======
+||:simpledb.ParsingException
+simpledb.ParsingException
+java.lang.Exception
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 ||:simpledb.storage.DbFile
 simpledb.common.DbException
 simpledb.storage.DbFile
@@ -164,7 +170,10 @@ java.lang.Object
 java.io.IOException
 simpledb.transaction.TransactionAbortedException
 ||:simpledb.systemtest.ScanTest$1InstrumentedHeapFile
+<<<<<<< HEAD
 java.util.Objects
+=======
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 simpledb.systemtest.ScanTest$1InstrumentedHeapFile
 simpledb.storage.HeapFile
 simpledb.systemtest.ScanTest
@@ -766,6 +775,10 @@ java.lang.invoke.LambdaMetafactory
 java.util.HashMap
 simpledb.storage.Page
 simpledb.storage.BufferPool
+<<<<<<< HEAD
+=======
+java.util.ArrayList
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 java.util.HashSet
 simpledb.storage.DbFile
 simpledb.transaction.TransactionId
@@ -779,6 +792,10 @@ java.lang.invoke.MethodHandles$Lookup
 java.util.Iterator
 simpledb.common.DbException
 simpledb.storage.Tuple
+<<<<<<< HEAD
+=======
+java.util.Collection
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 java.lang.invoke.MethodHandles
 java.util.concurrent.ConcurrentHashMap
 java.util.Set
@@ -1025,6 +1042,14 @@ simpledb.common.Permissions
 java.lang.Object
 simpledb.transaction.TransactionAbortedException
 simpledb.storage.HeapPage
+<<<<<<< HEAD
+=======
+||:simpledb.storage.RecordId
+simpledb.storage.PageId
+simpledb.storage.RecordId
+java.lang.Object
+java.io.Serializable
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 ||:simpledb.JoinTest
 simpledb.systemtest.SimpleDbTestBase
 simpledb.TestUtil
@@ -1140,6 +1165,7 @@ java.lang.String
 simpledb.execution.Predicate$Op
 simpledb.optimizer.IntHistogram
 simpledb.execution.Predicate
+<<<<<<< HEAD
 ||:simpledb.optimizer.LogicalFilterNode
 simpledb.optimizer.LogicalFilterNode
 java.lang.invoke.MethodHandles$Lookup
@@ -1150,6 +1176,8 @@ java.lang.invoke.StringConcatFactory
 simpledb.execution.Predicate$Op
 [Ljava.lang.String;
 simpledb.execution.Predicate
+=======
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 ||:simpledb.execution.Delete
 simpledb.execution.Delete
 java.lang.invoke.MethodHandles$Lookup
@@ -1166,6 +1194,19 @@ simpledb.common.Database
 java.lang.invoke.StringConcatFactory
 simpledb.execution.Operator
 simpledb.transaction.TransactionAbortedException
+<<<<<<< HEAD
+=======
+||:simpledb.optimizer.LogicalFilterNode
+simpledb.optimizer.LogicalFilterNode
+java.lang.invoke.MethodHandles$Lookup
+java.lang.invoke.MethodHandles
+java.lang.Object
+java.lang.String
+java.lang.invoke.StringConcatFactory
+simpledb.execution.Predicate$Op
+[Ljava.lang.String;
+simpledb.execution.Predicate
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 ||:simpledb.systemtest.LogTest
 java.util.Arrays
 simpledb.systemtest.LogTest
@@ -1265,6 +1306,18 @@ java.lang.Thread
 simpledb.execution.SeqScan
 simpledb.transaction.TransactionAbortedException
 simpledb.systemtest.TransactionTest
+<<<<<<< HEAD
+=======
+||:simpledb.index.BTreeEntry
+java.lang.invoke.MethodHandles$Lookup
+simpledb.index.BTreeEntry
+java.lang.invoke.MethodHandles
+java.lang.Object
+java.lang.String
+java.lang.invoke.StringConcatFactory
+simpledb.index.BTreePageId
+java.io.Serializable
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 ||:simpledb.optimizer.TableStats
 java.io.PrintStream
 java.lang.IllegalAccessException
@@ -1285,6 +1338,7 @@ java.lang.Class
 java.lang.SecurityException
 java.lang.Object
 simpledb.execution.Predicate$Op
+<<<<<<< HEAD
 ||:simpledb.index.BTreeEntry
 java.lang.invoke.MethodHandles$Lookup
 simpledb.index.BTreeEntry
@@ -1294,6 +1348,8 @@ java.lang.String
 java.lang.invoke.StringConcatFactory
 simpledb.index.BTreePageId
 java.io.Serializable
+=======
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 ||:simpledb.storage.IntField
 java.io.DataOutputStream
 simpledb.common.Type
@@ -2725,6 +2781,14 @@ simpledb.common.Type
 simpledb.storage.IntField
 java.io.IOException
 java.text.ParseException
+<<<<<<< HEAD
+=======
+||:simpledb.storage.BufferPool$Lock
+java.util.HashSet
+simpledb.storage.BufferPool$Lock
+java.lang.Object
+simpledb.storage.BufferPool
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 ||:simpledb.common.Type$2
 java.io.DataInputStream
 simpledb.common.Type$2
@@ -2764,11 +2828,14 @@ simpledb.common.Catalog
 simpledb.systemtest.BTreeScanTest$InstrumentedBTreeFile
 org.junit.Assert
 simpledb.transaction.TransactionAbortedException
+<<<<<<< HEAD
 ||:simpledb.storage.BufferPool$Lock
 java.util.HashSet
 simpledb.storage.BufferPool$Lock
 java.lang.Object
 simpledb.storage.BufferPool
+=======
+>>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
 ||:simpledb.systemtest.TransactionTest$ModifiableCyclicBarrier$UpdateLatch
 simpledb.systemtest.TransactionTest$ModifiableCyclicBarrier$UpdateLatch
 simpledb.systemtest.TransactionTest$ModifiableCyclicBarrier
