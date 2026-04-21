@@ -934,6 +934,32 @@ public class BTreeFile implements DbFile {
 		// the sibling pointers, and make the right page available for reuse.
 		// Delete the entry in the parent corresponding to the two pages that are merging -
 		// deleteParentEntry() will be useful here
+		 ArrayList<Tuple> tuples = new ArrayList<>();
+		Iterator<Tuple> it = rightPage.iterator();
+		while (it.hasNext()) {
+			tuples.add(it.next());
+		}
+
+		for (Tuple t : tuples) {
+			rightPage.deleteTuple(t);
+			leftPage.insertTuple(t);
+		}
+
+		// update sibling pointers
+		BTreePageId rightSiblingId = rightPage.getRightSiblingId();
+		leftPage.setRightSiblingId(rightSiblingId);
+
+		if (rightSiblingId != null) {
+			BTreeLeafPage rightSibling = (BTreeLeafPage) getPage(
+					tid, dirtypages, rightSiblingId, Permissions.READ_WRITE);
+			rightSibling.setLeftSiblingId(leftPage.getId());
+		}
+
+		// make right page reusable
+		setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
+
+		// remove separator entry from parent
+		deleteParentEntry(tid, dirtypages, leftPage, parent, parentEntry);
 	}
 
 	/**
@@ -967,6 +993,39 @@ public class BTreeFile implements DbFile {
 		// and make the right page available for reuse
 		// Delete the entry in the parent corresponding to the two pages that are merging -
 		// deleteParentEntry() will be useful here
+		Iterator<BTreeEntry> leftRevIt = leftPage.reverseIterator();
+		BTreeEntry lastLeft = leftRevIt.next();
+
+		Iterator<BTreeEntry> rightIt = rightPage.iterator();
+		BTreeEntry firstRight = rightIt.next();
+
+		BTreeEntry middle = new BTreeEntry(
+				parentEntry.getKey(),
+				lastLeft.getRightChild(),
+				firstRight.getLeftChild()
+		);
+		leftPage.insertEntry(middle);
+
+		// move ALL entries from rightPage to leftPage
+		ArrayList<BTreeEntry> entries = new ArrayList<>();
+		rightIt = rightPage.iterator();
+		while (rightIt.hasNext()) {
+			entries.add(rightIt.next());
+		}
+
+		for (BTreeEntry e : entries) {
+			rightPage.deleteKeyAndLeftChild(e);
+			leftPage.insertEntry(e);
+		}
+
+		// fix moved children's parent pointers
+		updateParentPointers(tid, dirtypages, leftPage);
+
+		// make right page reusable
+		setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
+
+		// remove separator entry from parent
+		deleteParentEntry(tid, dirtypages, leftPage, parent, parentEntry);
 	}
 	
 	/**
