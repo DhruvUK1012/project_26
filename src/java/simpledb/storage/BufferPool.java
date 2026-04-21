@@ -205,25 +205,6 @@ public class BufferPool {
                 discardPage(pid);
             }
         }
-        List <PageId> toProcess = new ArrayList<>();
-        for(PageId pid : pages.keySet()){
-                Page page = pages.get(pid);
-                if (page.isDirty() != null && page.isDirty().equals(tid)){
-                    toProcess.add(pid);
-                }
-            }
-        
-        for(PageId pid : toProcess){
-            if (commit == true){
-                try {
-                    flushPage(pid);
-                } catch(IOException e){
-                    e.printStackTrace();
-                }
-            }else{
-                discardPage(pid);
-            }
-        }
         releaseAllLocks(tid);
         synchronized (this) {
             removeWaitEdges(tid);
@@ -379,15 +360,15 @@ public class BufferPool {
             try {
                 wait();
             } catch (InterruptedException e) {
-                removeOutgoingOutgoingWaitEdges(tid);
+                removeOutgoingWaitEdges(tid);
                 Thread.currentThread().interrupt();
                 throw new TransactionAbortedException();
             }
 
-            removeOutgoingOutgoingWaitEdges(tid);
+            removeOutgoingWaitEdges(tid);
         }
 
-        removeOutgoingOutgoingWaitEdges(tid);
+        removeOutgoingWaitEdges(tid);
 
         if (perm == Permissions.READ_ONLY) {
             grantSharedLock(lock, tid, pid);
@@ -526,9 +507,6 @@ public class BufferPool {
         waitForGraph.remove(tid);
     }
 
-    private void removeOutgoingWaitEdges(TransactionId tid) {
-        waitForGraph.remove(tid);
-    }
 
     private void removeWaitEdges(TransactionId tid) {
         waitForGraph.remove(tid);
