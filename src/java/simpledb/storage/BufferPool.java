@@ -535,12 +535,6 @@ public class BufferPool {
         for (Set<TransactionId> neighbors : waitForGraph.values()) {
             neighbors.remove(tid);
         }
-<<<<<<< HEAD
-=======
-        for (Set<TransactionId> neighbors : waitForGraph.values()) {
-            neighbors.remove(tid);
-        }
->>>>>>> 3eec57d2bbfba184d9fd062fb7c0c9e4f5ed0eb9
     }
 
     private boolean hasCycle(TransactionId start) {
