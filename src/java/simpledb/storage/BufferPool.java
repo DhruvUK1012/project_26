@@ -482,10 +482,6 @@ public class BufferPool {
 
     private void removeWaitEdges(TransactionId tid) {
         waitForGraph.remove(tid);
-
-        for (Set<TransactionId> neighbors : waitForGraph.values()) {
-            neighbors.remove(tid);
-        }
     }
 
     private boolean hasCycle(TransactionId start) {

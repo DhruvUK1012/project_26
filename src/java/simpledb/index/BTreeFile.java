@@ -168,6 +168,7 @@ public class BTreeFile implements DbFile {
 		return keyField;
 	}
 
+
 	/**
 	 * Recursive function which finds and locks the leaf page in the B+ tree corresponding to
 	 * the left-most page possibly containing the key field f. It locks all internal
@@ -188,9 +189,45 @@ public class BTreeFile implements DbFile {
                                        Field f)
 					throws DbException, TransactionAbortedException {
 		// some code goes here
-        return null;
+        BTreePage page = (BTreePage) getPage(tid, dirtypages, pid,
+            pid.pgcateg() == BTreePageId.LEAF ? perm : Permissions.READ_ONLY);
+
+		if (pid.pgcateg() == BTreePageId.LEAF) {
+			return (BTreeLeafPage) page;
+		}
+
+		if (pid.pgcateg() != BTreePageId.INTERNAL) {
+			throw new DbException("Unexpected page category: " + pid.pgcateg());
+		}
+
+		BTreeInternalPage internalPage = (BTreeInternalPage) page;
+		Iterator<BTreeEntry> it = internalPage.iterator();
+
+		BTreePageId childPid;
+
+		if (f == null) {
+			// Go to the left-most child
+			if (!it.hasNext()) {
+				throw new DbException("Internal page has no entries");
+			}
+			childPid = it.next().getLeftChild();
+		} else {
+			childPid = null;
+			while (it.hasNext()) {
+				BTreeEntry entry = it.next();
+				if (f.compare(Op.LESS_THAN_OR_EQ, entry.getKey())) {
+					childPid = entry.getLeftChild();
+					break;
+				}
+				childPid = entry.getRightChild();
+			}
+		}
+
+		return findLeafPage(tid, dirtypages, childPid, perm, f);
+
 	}
 	
+
 	/**
 	 * Convenience method to find a leaf page when there is no dirtypages HashMap.
 	 * Used by the BTreeFile iterator.
@@ -239,11 +276,10 @@ public class BTreeFile implements DbFile {
 		// the new entry.  getParentWithEmtpySlots() will be useful here.  Don't forget to update
 		// the sibling pointers of all the affected leaf pages.  Return the page into which a 
 		// tuple with the given key field should be inserted.
-        return null;
-		
+		return null;
 	}
 	
-	/**
+	/**-
 	 * Split an internal page to make room for new entries and recursively split its parent page
 	 * as needed to accommodate a new entry. The new entry for the parent should have a key matching 
 	 * the middle key in the original internal page being split (this key is "pushed up" to the parent). 
