@@ -10,6 +10,7 @@ import simpledb.transaction.TransactionId;
 import java.io.*;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.Lock;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +36,7 @@ public class BufferPool {
 
     private static int pageSize = DEFAULT_PAGE_SIZE;
 
+    private final Object pageTableLock = new Object();
 
     //
     private final Map<TransactionId, Set<TransactionId>> waitForGraph;
@@ -107,22 +109,18 @@ public class BufferPool {
      */
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        // some code goes here
-        acquireLock(tid, pid, perm);
 
-        Page page = pages.get(pid);
-        if (page != null) {
-            return page;
-        }
+        acquireLock(tid, pid, perm); // uses `this` monitor internally, fully releases before returning
 
-        synchronized (this) {
-            page = pages.get(pid);
+        // Now acquire pages under a SEPARATE monitor — never nest inside acquireLock
+        synchronized (pageTableLock) {
+            Page page = pages.get(pid);
             if (page != null) {
                 return page;
             }
 
             if (pages.size() >= numPages) {
-                evictPage();
+                evictPage(); // called inside pageTableLock — consistent
             }
 
             DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
@@ -272,12 +270,10 @@ public class BufferPool {
      *     break simpledb if running in NO STEAL mode.
      */
     public synchronized void flushAllPages() throws IOException {
-        // not necessary for lab1
-        for (PageId pid: pages.keySet()){
-            Page page = pages.get(pid);
-            DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
-            file.writePage(page);
-            page.markDirty(false, null);
+    // `pages` is ConcurrentHashMap so iteration is safe;
+    // individual flushPage calls use pageTableLock — don't nest synchronized(this) here
+        for (PageId pid : pages.keySet()) {
+            flushPage(pid);
         }
     }
 
@@ -289,25 +285,20 @@ public class BufferPool {
         Also used by B+ tree files to ensure that deleted pages
         are removed from the cache so they can be reused safely
     */
-    public synchronized void discardPage(PageId pid) {
-        // not necessary for lab1
-        pages.remove(pid);
+    public void discardPage(PageId pid) {
+        synchronized (pageTableLock) {
+            pages.remove(pid);
+        }
     }
 
     /**
      * Flushes a certain page to disk
      * @param pid an ID indicating the page to flush
      */
-    private synchronized void flushPage(PageId pid) throws IOException {
-        // not necessary for lab1
-        Page page = pages.get(pid);
-        if (page == null) {
-            return;
-        }
-        if (page.isDirty() == null){
-            return;
-        }
-        if (page.isDirty() != null){
+   private void flushPage(PageId pid) throws IOException {
+        synchronized (pageTableLock) {
+            Page page = pages.get(pid);
+            if (page == null || page.isDirty() == null) return;
             DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
             file.writePage(page);
             page.markDirty(false, null);
@@ -325,20 +316,14 @@ public class BufferPool {
      * Discards a page from the buffer pool.
      * Flushes the page to disk to ensure dirty pages are updated on disk.
      */
-    private synchronized void evictPage() throws DbException {
-        // not necessary for lab1
+    private void evictPage() throws DbException {
         for (PageId pid : pages.keySet()) {
             Page page = pages.get(pid);
-
-            // In SimpleDB, prefer evicting a clean page
             if (page != null && page.isDirty() == null) {
                 pages.remove(pid);
                 return;
             }
-
-
         }
-
         throw new DbException("no clean page to evict");
     }
 
@@ -347,25 +332,39 @@ public class BufferPool {
 
         Lock lock = pageLocks.computeIfAbsent(pid, k -> new Lock());
 
+        long startTime = System.currentTimeMillis();
+        // Timeout: abort self after 500ms to break starvation
+        // This is the standard approach for SimpleDB-style lock managers
+        final long TIMEOUT_MS = 500;
+
         while (!canGrant(lock, tid, perm)) {
             Set<TransactionId> blockers = getBlockingTransactions(lock, tid, perm);
 
-            addWaitEdges(tid, blockers);
+            if (!blockers.isEmpty()) {
+                addWaitEdges(tid, blockers);
+            }
 
             if (hasCycle(tid)) {
                 removeOutgoingWaitEdges(tid);
                 throw new TransactionAbortedException();
             }
 
-            try {
-                wait();
-            } catch (InterruptedException e) {
+            // Abort on timeout — prevents starvation under high thread contention
+            if (System.currentTimeMillis() - startTime > TIMEOUT_MS) {
                 removeOutgoingWaitEdges(tid);
-                Thread.currentThread().interrupt();
                 throw new TransactionAbortedException();
             }
 
-            removeOutgoingWaitEdges(tid);
+            try {
+                wait(50); // shorter wait = faster retry cycle
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                removeOutgoingWaitEdges(tid);
+                throw new TransactionAbortedException();
+            }
+
+            // Re-fetch lock in case it was replaced in pageLocks map
+            lock = pageLocks.computeIfAbsent(pid, k -> new Lock());
         }
 
         removeOutgoingWaitEdges(tid);

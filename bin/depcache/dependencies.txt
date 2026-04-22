@@ -456,6 +456,7 @@ simpledb.common.DbException
 simpledb.storage.Tuple
 simpledb.storage.DbFileIterator
 simpledb.storage.BufferPool
+java.util.Objects
 simpledb.storage.HeapFile$HeapFileIterator
 simpledb.storage.HeapPageId
 simpledb.storage.HeapFile
@@ -757,6 +758,7 @@ simpledb.storage.Page
 ||:simpledb.storage.BufferPool
 java.lang.Throwable
 java.lang.invoke.LambdaMetafactory
+java.lang.System
 java.util.HashMap
 simpledb.storage.Page
 simpledb.storage.BufferPool
