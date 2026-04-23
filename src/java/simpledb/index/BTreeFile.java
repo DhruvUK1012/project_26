@@ -535,7 +535,7 @@ public class BTreeFile implements DbFile {
 	 * many pages since parent pointers will need to be updated when an internal node splits.
 	 * @see #splitLeafPage(TransactionId, Map, BTreeLeafPage, Field)
 	 */
-	public List<Page> insertTuple(TransactionId tid, Tuple t)
+	public synchronized List<Page> insertTuple(TransactionId tid, Tuple t)
 			throws DbException, IOException, TransactionAbortedException {
 		Map<PageId, Page> dirtypages = new HashMap<>();
 
@@ -839,18 +839,20 @@ public class BTreeFile implements DbFile {
 
 		if (numToMove <= 0) return;
 
+		BTreePageId boundaryChild = page.iterator().next().getLeftChild();
+
 		for (int i = 0; i < numToMove; i++) {
 			BTreeEntry leftEntry = leftSibling.reverseIterator().next();
 			BTreePageId movedChild = leftEntry.getRightChild();
-			BTreePageId currentLeftmost = page.iterator().next().getLeftChild();
 
 			leftSibling.deleteKeyAndRightChild(leftEntry);
 
-			BTreeEntry newEntry = new BTreeEntry(parentEntry.getKey(), movedChild, currentLeftmost);
+			BTreeEntry newEntry = new BTreeEntry(parentEntry.getKey(), movedChild, boundaryChild);
 			page.insertEntry(newEntry);
 
 			parentEntry.setKey(leftEntry.getKey());
 			parent.updateEntry(parentEntry);
+			boundaryChild = movedChild;
 		}
 
 		updateParentPointers(tid, dirtypages, page);
@@ -885,18 +887,20 @@ public class BTreeFile implements DbFile {
 
 		if (numToMove <= 0) return;
 
+		BTreePageId boundaryChild = page.reverseIterator().next().getRightChild();
+
 		for (int i = 0; i < numToMove; i++) {
 			BTreeEntry rightEntry = rightSibling.iterator().next();
 			BTreePageId movedChild = rightEntry.getLeftChild();
-			BTreePageId currentRightmost = page.reverseIterator().next().getRightChild();
 
 			rightSibling.deleteKeyAndLeftChild(rightEntry);
 
-			BTreeEntry newEntry = new BTreeEntry(parentEntry.getKey(), currentRightmost, movedChild);
+			BTreeEntry newEntry = new BTreeEntry(parentEntry.getKey(), boundaryChild, movedChild);
 			page.insertEntry(newEntry);
 
 			parentEntry.setKey(rightEntry.getKey());
 			parent.updateEntry(parentEntry);
+			boundaryChild = movedChild;
 		}
 
 		updateParentPointers(tid, dirtypages, page);
@@ -957,9 +961,9 @@ public class BTreeFile implements DbFile {
 			rightSibling.setLeftSiblingId(leftPage.getId());
 		}
 
-		setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
 		dirtypages.put(leftPage.getId(), leftPage);
 		deleteParentEntry(tid, dirtypages, leftPage, parent, freshParentEntry);
+		setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
 	}
 
 	/**
@@ -1022,8 +1026,8 @@ public class BTreeFile implements DbFile {
 		updateParentPointers(tid, dirtypages, leftPage);
 		dirtypages.put(leftPage.getId(), leftPage);
 		dirtypages.put(parent.getId(), parent);
-		setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
 		deleteParentEntry(tid, dirtypages, leftPage, parent, freshParentEntry);
+		setEmptyPage(tid, dirtypages, rightPage.getId().getPageNumber());
 	}
 	
 	/**
@@ -1084,7 +1088,7 @@ public class BTreeFile implements DbFile {
 	 * many pages since parent pointers will need to be updated when an internal node merges.
 	 * @see #handleMinOccupancyPage(TransactionId, Map, BTreePage)
 	 */
-	public List<Page> deleteTuple(TransactionId tid, Tuple t)
+	public synchronized List<Page> deleteTuple(TransactionId tid, Tuple t)
 			throws DbException, IOException, TransactionAbortedException {
 		Map<PageId, Page> dirtypages = new HashMap<>();
 
