@@ -110,22 +110,18 @@ public class BufferPool {
     public Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
 
-        acquireLock(tid, pid, perm); // uses `this` monitor internally, fully releases before returning
+        acquireLock(tid, pid, perm);
 
-        // Now acquire pages under a SEPARATE monitor — never nest inside acquireLock
         synchronized (pageTableLock) {
             Page page = pages.get(pid);
-            if (page != null) {
-                return page;
+            if (page == null) {
+                if (pages.size() >= numPages) {
+                    evictPage();
+                }
+                DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
+                page = file.readPage(pid);
+                pages.put(pid, page);
             }
-
-            if (pages.size() >= numPages) {
-                evictPage(); // called inside pageTableLock — consistent
-            }
-
-            DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
-            page = file.readPage(pid);
-            pages.put(pid, page);
             return page;
         }
     }
@@ -182,31 +178,35 @@ public class BufferPool {
      * @param commit a flag indicating whether we should commit or abort
      */
     public void transactionComplete(TransactionId tid, boolean commit) {
-        // some code goes here
-        // not necessary for lab1|lab2
-        List <PageId> toProcess = new ArrayList<>();
-        for(PageId pid : pages.keySet()){
+        if (commit) {
+            for (PageId pid : pages.keySet()) {
                 Page page = pages.get(pid);
-                if (page.isDirty() != null && page.isDirty().equals(tid)){
-                    toProcess.add(pid);
+                if (page != null && page.isDirty() != null && page.isDirty().equals(tid)) {
+                    try { flushPage(pid); } catch (IOException e) { e.printStackTrace(); }
                 }
             }
-        
-        for(PageId pid : toProcess){
-            if (commit == true){
-                try {
-                    flushPage(pid);
-                } catch(IOException e){
-                    e.printStackTrace();
+        } else {
+            // Collect all pages this transaction wrote (by lock ownership)
+            Set<PageId> toDiscard = new HashSet<>();
+            synchronized (this) {
+                Set<PageId> held = transactionLocks.get(tid);
+                if (held != null) toDiscard.addAll(held);
+            }
+            // Also catch any pages marked dirty with this tid
+            for (PageId pid : pages.keySet()) {
+                Page page = pages.get(pid);
+                if (page != null && page.isDirty() != null && page.isDirty().equals(tid)) {
+                    toDiscard.add(pid);
                 }
-            }else{
-                discardPage(pid);
+            }
+            synchronized (pageTableLock) {
+                for (PageId pid : toDiscard) {
+                    pages.remove(pid);
+                }
             }
         }
         releaseAllLocks(tid);
-        synchronized (this) {
-            removeWaitEdges(tid);
-        }
+        synchronized (this) { removeWaitEdges(tid); }
     }
 
     /**

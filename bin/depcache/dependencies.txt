@@ -762,7 +762,6 @@ java.lang.System
 java.util.HashMap
 simpledb.storage.Page
 simpledb.storage.BufferPool
-java.util.ArrayList
 java.util.HashSet
 simpledb.storage.DbFile
 simpledb.transaction.TransactionId
@@ -1574,8 +1573,10 @@ simpledb.storage.BufferPool
 simpledb.index.BTreeUtility$BTreeInserter
 java.util.List
 simpledb.transaction.TransactionId
+java.lang.InterruptedException
 java.lang.Thread
 simpledb.common.Database
+java.lang.Math
 java.lang.Object
 simpledb.transaction.TransactionAbortedException
 ||:simpledb.optimizer.QueryPlanVisualizer$SubTreeDescriptor
@@ -2068,12 +2069,10 @@ org.junit.Assert
 simpledb.transaction.TransactionAbortedException
 ||:simpledb.index.BTreeUtility$BTreeDeleter
 java.lang.Throwable
-simpledb.common.DbException
 simpledb.storage.IntField
 simpledb.index.BTreeUtility
 simpledb.index.BTreeUtility$BTreeDeleter
 java.util.concurrent.BlockingQueue
-simpledb.storage.TupleDesc
 java.lang.Integer
 simpledb.storage.DbFileIterator
 java.lang.Exception
@@ -2081,11 +2080,12 @@ simpledb.index.BTreeFile
 simpledb.storage.BufferPool
 simpledb.execution.Predicate
 java.util.List
+simpledb.transaction.TransactionId
 simpledb.execution.IndexPredicate
 java.lang.InterruptedException
-simpledb.transaction.TransactionId
 java.lang.Thread
 simpledb.common.Database
+java.lang.Math
 java.lang.Object
 simpledb.execution.Predicate$Op
 simpledb.transaction.TransactionAbortedException
